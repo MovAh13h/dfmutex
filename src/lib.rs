@@ -423,8 +423,6 @@ mod lock_pair_swapped_order {
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let avg = compute_intensive_task();
-                let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..5), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
