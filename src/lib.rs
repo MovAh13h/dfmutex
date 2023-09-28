@@ -40,6 +40,7 @@ where
 
 mod test_commons {
     pub const TEST_ITERATIONS: std::ops::Range<i32> = 0..10;
+    pub const THREADS_RANGE: std::ops::Range<i32> = 0..8;
 
     pub const TASK_BASE: u64 = 40;
 
@@ -66,35 +67,27 @@ mod single_lock {
     use super::spawn;
     use super::test_commons::*;
 
-        #[test]
+    #[test]
     pub fn constant_time() {
         let m = DFMutex::new(String::from("Lorem Ipsum"));
 
         let closure = |mut dfm: DFMutex<String>| {
-            thread::sleep(Duration::new(2, 0));
+            thread::sleep(Duration::new(1, 0));
 
             let data = dfm.lock().unwrap();
 
             println!("{}", data);
         };
 
-        let a = spawn(&m, closure);
-        let b = spawn(&m, closure);
-        let c = spawn(&m, closure);
-        let d = spawn(&m, closure);
-        let e = spawn(&m, closure);
-        let f = spawn(&m, closure);
-        let g = spawn(&m, closure);
-        let h = spawn(&m, closure);
+        let mut handles = Vec::new();
 
-        a.join().unwrap();
-        b.join().unwrap();
-        c.join().unwrap();
-        d.join().unwrap();
-        e.join().unwrap();
-        f.join().unwrap();
-        g.join().unwrap();
-        h.join().unwrap();
+        for _ in THREADS_RANGE {
+            handles.push(spawn(&m, closure));    
+        }
+
+        for handle in handles.into_iter() {
+            handle.join().unwrap();
+        }
     }
 
     #[test]
@@ -103,30 +96,22 @@ mod single_lock {
 
         let closure = |mut dfm: DFMutex<String>| {
             let mut rng = thread_rng();
-            thread::sleep(Duration::new(rng.gen_range(1..5), 0));
+            thread::sleep(Duration::new(rng.gen_range(1..3), 0));
 
             let data = dfm.lock().unwrap();
 
             println!("{}", data);
         };
 
-        let a = spawn(&m, closure);
-        let b = spawn(&m, closure);
-        let c = spawn(&m, closure);
-        let d = spawn(&m, closure);
-        let e = spawn(&m, closure);
-        let f = spawn(&m, closure);
-        let g = spawn(&m, closure);
-        let h = spawn(&m, closure);
+        let mut handles = Vec::new();
 
-        a.join().unwrap();
-        b.join().unwrap();
-        c.join().unwrap();
-        d.join().unwrap();
-        e.join().unwrap();
-        f.join().unwrap();
-        g.join().unwrap();
-        h.join().unwrap();
+        for _ in THREADS_RANGE {
+            handles.push(spawn(&m, closure));    
+        }
+
+        for handle in handles.into_iter() {
+            handle.join().unwrap();
+        }
     }
 
     #[test]
@@ -141,23 +126,15 @@ mod single_lock {
             println!("{} {}", data, r);
         };
 
-        let a = spawn(&m, closure);
-        let b = spawn(&m, closure);
-        let c = spawn(&m, closure);
-        let d = spawn(&m, closure);
-        let e = spawn(&m, closure);
-        let f = spawn(&m, closure);
-        let g = spawn(&m, closure);
-        let h = spawn(&m, closure);
+        let mut handles = Vec::new();
 
-        a.join().unwrap();
-        b.join().unwrap();
-        c.join().unwrap();
-        d.join().unwrap();
-        e.join().unwrap();
-        f.join().unwrap();
-        g.join().unwrap();
-        h.join().unwrap();
+        for _ in THREADS_RANGE {
+            handles.push(spawn(&m, closure));    
+        }
+
+        for handle in handles.into_iter() {
+            handle.join().unwrap();
+        }
     }
 }
 
@@ -182,7 +159,7 @@ mod lock_pair_straight_order {
             let m = DFMutex::new((m1, m2));
 
             let closure = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(2, 0));
+                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -192,23 +169,15 @@ mod lock_pair_straight_order {
                 println!("{} {}", m1d, m2d);
             };
 
-            let a = spawn(&m, closure);
-            let b = spawn(&m, closure);
-            let c = spawn(&m, closure);
-            let d = spawn(&m, closure);
-            let e = spawn(&m, closure);
-            let f = spawn(&m, closure);
-            let g = spawn(&m, closure);
-            let h = spawn(&m, closure);
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
+            for _ in THREADS_RANGE {
+                handles.push(spawn(&m, closure));    
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }
         }
     }
 
@@ -221,7 +190,7 @@ mod lock_pair_straight_order {
 
             let closure = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..5), 0));
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -231,24 +200,15 @@ mod lock_pair_straight_order {
                 println!("{} {}", m1d, m2d);
             };
 
-            let a = spawn(&m, closure);
-            let b = spawn(&m, closure);
-            let c = spawn(&m, closure);
-            let d = spawn(&m, closure);
-            let e = spawn(&m, closure);
-            let f = spawn(&m, closure);
-            let g = spawn(&m, closure);
-            let h = spawn(&m, closure);
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
-        }
+            for _ in THREADS_RANGE {
+                handles.push(spawn(&m, closure));    
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }        }
     }
 
     #[test]
@@ -269,23 +229,15 @@ mod lock_pair_straight_order {
                 println!("{} {} {}", m1d, m2d, avg);
             };
 
-            let a = spawn(&m, closure);
-            let b = spawn(&m, closure);
-            let c = spawn(&m, closure);
-            let d = spawn(&m, closure);
-            let e = spawn(&m, closure);
-            let f = spawn(&m, closure);
-            let g = spawn(&m, closure);
-            let h = spawn(&m, closure);
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
+            for _ in THREADS_RANGE {
+                handles.push(spawn(&m, closure));    
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }
         }
     }
 }
@@ -311,7 +263,7 @@ mod lock_pair_swapped_order {
             let m = DFMutex::new((m1, m2));
 
             let closure_a = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(2, 0));
+                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -322,7 +274,7 @@ mod lock_pair_swapped_order {
             };
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(2, 0));
+                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -332,23 +284,21 @@ mod lock_pair_swapped_order {
                 println!("{} {}", m2d, m1d);
             };
 
-            let a = spawn(&m, closure_a);
-            let b = spawn(&m, closure_b);
-            let c = spawn(&m, closure_a);
-            let d = spawn(&m, closure_b);
-            let e = spawn(&m, closure_a);
-            let f = spawn(&m, closure_b);
-            let g = spawn(&m, closure_a);
-            let h = spawn(&m, closure_b);
+            let mut flag = true;
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
+            for _ in THREADS_RANGE {
+                if flag {
+                    handles.push(spawn(&m, closure_a));    
+                } else {
+                    handles.push(spawn(&m, closure_b));
+                }
+                flag = !flag;
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }
         }
     }
 
@@ -361,7 +311,7 @@ mod lock_pair_swapped_order {
 
             let closure_a = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..5), 0));
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -373,7 +323,7 @@ mod lock_pair_swapped_order {
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..5), 0));
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
@@ -383,23 +333,21 @@ mod lock_pair_swapped_order {
                 println!("{} {}", m2d, m1d);
             };
 
-            let a = spawn(&m, closure_a);
-            let b = spawn(&m, closure_b);
-            let c = spawn(&m, closure_a);
-            let d = spawn(&m, closure_b);
-            let e = spawn(&m, closure_a);
-            let f = spawn(&m, closure_b);
-            let g = spawn(&m, closure_a);
-            let h = spawn(&m, closure_b);
+            let mut flag = true;
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
+            for _ in THREADS_RANGE {
+                if flag {
+                    handles.push(spawn(&m, closure_a));    
+                } else {
+                    handles.push(spawn(&m, closure_b));
+                }
+                flag = !flag;
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }
         }
     }
 
@@ -432,32 +380,99 @@ mod lock_pair_swapped_order {
                 println!("{} {} {}", m2d, m1d, avg);
             };
 
-            let a = spawn(&m, closure_a);
-            let b = spawn(&m, closure_b);
-            let c = spawn(&m, closure_a);
-            let d = spawn(&m, closure_b);
-            let e = spawn(&m, closure_a);
-            let f = spawn(&m, closure_b);
-            let g = spawn(&m, closure_a);
-            let h = spawn(&m, closure_b);
+            let mut flag = true;
+            let mut handles = Vec::new();
 
-            a.join().unwrap();
-            b.join().unwrap();
-            c.join().unwrap();
-            d.join().unwrap();
-            e.join().unwrap();
-            f.join().unwrap();
-            g.join().unwrap();
-            h.join().unwrap();
+            for _ in THREADS_RANGE {
+                if flag {
+                    handles.push(spawn(&m, closure_a));    
+                } else {
+                    handles.push(spawn(&m, closure_b));
+                }
+                flag = !flag;
+            }
+
+            for handle in handles.into_iter() {
+                handle.join().unwrap();
+            }
         }
     }
 }
 
 
+#[cfg(test)]
+mod dining_philisophers {
+    use std::thread;
+    use std::time::Duration;
 
+    use super::DFMutex;
 
+    const ITERATIONS: std::ops::Range<i32> = 0..500;
+    const FORK_RANGE: std::ops::RangeInclusive<i32> = 1..=5;
 
+    struct Philosopher {
+        id: i32,
+        left: DFMutex<String>,
+        right: DFMutex<String>,
+    }
 
+    impl Philosopher {
+        pub fn new(id: i32, left: DFMutex<String>, right: DFMutex<String>) -> Self {
+            Self { id, left, right }
+        }
+
+        pub fn think(&self) {
+            thread::sleep(Duration::new(0, 100000));
+        }
+
+        pub fn eat(&mut self) {
+            let left_fork = self.left.lock().unwrap();
+            println!("{} Acquired L -> {}", self.id, left_fork);
+            let right_fork = self.right.lock().unwrap();
+            println!("{} Acquired R -> {}", self.id, right_fork);
+
+            thread::sleep(Duration::new(0, 100000));
+
+            drop(left_fork);
+            drop(right_fork);
+        }
+    }
+
+    #[ignore = "Test is deadlock prone"]
+    #[test]
+    pub fn std() {
+        for i in ITERATIONS {
+            println!("===== Iteration {} =====", i);
+
+            let mut forks = Vec::new();
+
+            for i in FORK_RANGE {
+                forks.push(DFMutex::new(format!("Fork {}", i)));
+            }
+
+            let mut philosophers: Vec<Philosopher> = Vec::new();
+
+            philosophers.push(Philosopher::new(1, forks[0].clone(), forks[1].clone()));
+            philosophers.push(Philosopher::new(2, forks[1].clone(), forks[2].clone()));
+            philosophers.push(Philosopher::new(3, forks[2].clone(), forks[3].clone()));
+            philosophers.push(Philosopher::new(4, forks[3].clone(), forks[4].clone()));
+            philosophers.push(Philosopher::new(5, forks[4].clone(), forks[0].clone()));
+
+            let mut handles = Vec::new();
+            for _ in FORK_RANGE {
+                let mut phil = philosophers.pop().unwrap();
+                handles.push(thread::spawn(move || {
+                    phil.think();
+                    phil.eat();
+                }));
+            }
+
+            for i in handles.into_iter() {
+                i.join().unwrap();
+            }
+        }
+    }
+}
 
 
 
