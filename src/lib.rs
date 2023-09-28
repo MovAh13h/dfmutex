@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
 #[derive(Debug)]
-struct DFMutex<T> {
+pub struct DFMutex<T> {
     internal: Arc<Mutex<T>>,
 }
 
@@ -17,32 +17,29 @@ impl<T> DFMutex<T> {
     pub fn lock(&mut self) -> LockResult<MutexGuard<'_, T>> {
         self.internal.lock()
     }
-}
 
-impl<T> Clone for DFMutex<T> {
     fn clone(&self) -> Self {
         DFMutex { internal: Arc::clone(&self.internal) }
     }
 }
 
-fn spawn<D, T, F>(odfm: &DFMutex<D>, f: F) -> JoinHandle<T>
+pub fn spawn<D, T, F>(odfm: &DFMutex<D>, f: F) -> JoinHandle<T>
 where
     F: FnOnce(DFMutex<D>) -> T + Send + 'static,
     D: Send + 'static,
-    T: Send + 'static
+    T: Send + 'static,
 {
     let codfm = odfm.clone();
 
-    thread::spawn(move || {
-        return f(codfm);
-    })
+    thread::spawn(move || f(codfm))
 }
 
-mod test_commons {
+#[allow(dead_code)]
+pub (crate) mod test_commons {
     pub const TEST_ITERATIONS: std::ops::Range<i32> = 0..10;
     pub const THREADS_RANGE: std::ops::Range<i32> = 0..8;
 
-    pub const TASK_BASE: u64 = 40;
+    const TASK_BASE: u64 = 40;
 
     fn fibonacci(n: u64) -> u64 {
         if n <= 1 {
@@ -72,10 +69,8 @@ mod single_lock {
         let m = DFMutex::new(String::from("Lorem Ipsum"));
 
         let closure = |mut dfm: DFMutex<String>| {
-            thread::sleep(Duration::new(1, 0));
-
             let data = dfm.lock().unwrap();
-
+            thread::sleep(Duration::new(1, 0));
             println!("{}", data);
         };
 
@@ -96,9 +91,8 @@ mod single_lock {
 
         let closure = |mut dfm: DFMutex<String>| {
             let mut rng = thread_rng();
-            thread::sleep(Duration::new(rng.gen_range(1..3), 0));
-
             let data = dfm.lock().unwrap();
+            thread::sleep(Duration::new(rng.gen_range(1..3), 0));
 
             println!("{}", data);
         };
@@ -106,7 +100,7 @@ mod single_lock {
         let mut handles = Vec::new();
 
         for _ in THREADS_RANGE {
-            handles.push(spawn(&m, closure));    
+            handles.push(spawn(&m, closure));
         }
 
         for handle in handles.into_iter() {
@@ -119,9 +113,9 @@ mod single_lock {
         let m = DFMutex::new(String::from("Lorem Ipsum"));
 
         let closure = |mut dfm: DFMutex<String>| {
-            let r = compute_intensive_task();
-
             let data = dfm.lock().unwrap();
+
+            let r = compute_intensive_task();
 
             println!("{} {}", data, r);
         };
@@ -159,12 +153,13 @@ mod lock_pair_straight_order {
             let m = DFMutex::new((m1, m2));
 
             let closure = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
+
+                thread::sleep(Duration::new(1, 0));
 
                 println!("{} {}", m1d, m2d);
             };
@@ -172,7 +167,7 @@ mod lock_pair_straight_order {
             let mut handles = Vec::new();
 
             for _ in THREADS_RANGE {
-                handles.push(spawn(&m, closure));    
+                handles.push(spawn(&m, closure));
             }
 
             for handle in handles.into_iter() {
@@ -190,12 +185,13 @@ mod lock_pair_straight_order {
 
             let closure = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
+
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
 
                 println!("{} {}", m1d, m2d);
             };
@@ -219,14 +215,15 @@ mod lock_pair_straight_order {
             let m = DFMutex::new((m1, m2));
 
             let closure = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                let avg = compute_intensive_task();
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
 
-                println!("{} {} {}", m1d, m2d, avg);
+                let r = compute_intensive_task();
+
+                println!("{} {} {}", m1d, m2d, r);
             };
 
             let mut handles = Vec::new();
@@ -263,23 +260,25 @@ mod lock_pair_swapped_order {
             let m = DFMutex::new((m1, m2));
 
             let closure_a = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
+
+                thread::sleep(Duration::new(1, 0));
 
                 println!("{} {}", m1d, m2d);
             };
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                thread::sleep(Duration::new(1, 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m2d = m2.lock().unwrap();
                 let m1d = m1.lock().unwrap();
+
+                thread::sleep(Duration::new(1, 0));
 
                 println!("{} {}", m2d, m1d);
             };
@@ -311,24 +310,26 @@ mod lock_pair_swapped_order {
 
             let closure_a = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
+
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
 
                 println!("{} {}", m1d, m2d);
             };
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
                 let mut rng = thread_rng();
-                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m2d = m2.lock().unwrap();
                 let m1d = m1.lock().unwrap();
+
+                thread::sleep(Duration::new(rng.gen_range(1..3), 0));
 
                 println!("{} {}", m2d, m1d);
             };
@@ -359,25 +360,27 @@ mod lock_pair_swapped_order {
             let m = DFMutex::new((m1, m2));
 
             let closure_a = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                let avg = compute_intensive_task();
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m1d = m1.lock().unwrap();
                 let m2d = m2.lock().unwrap();
 
-                println!("{} {} {}", m1d, m2d, avg);
+                let r = compute_intensive_task();
+
+                println!("{} {} {}", m1d, m2d, r);
             };
 
             let closure_b = |mut dfm: DFMutex<(DFMutex<String>, DFMutex<String>)>| {
-                let avg = compute_intensive_task();
                 let mut guard = dfm.lock().unwrap();
                 let (m1, m2) = guard.deref_mut();
 
                 let m2d = m2.lock().unwrap();
                 let m1d = m1.lock().unwrap();
 
-                println!("{} {} {}", m2d, m1d, avg);
+                let r = compute_intensive_task();
+
+                println!("{} {} {}", m2d, m1d, r);
             };
 
             let mut flag = true;
@@ -473,11 +476,3 @@ mod dining_philisophers {
         }
     }
 }
-
-
-
-
-
-
-
-
