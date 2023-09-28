@@ -2,18 +2,59 @@ use std::sync::LockResult;
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 
+///
+/// Deadlock-free Mutex locks
+///
+/// DFMutex is a library that provides a ***guaranteed deadlock-free*** Mutex
+/// implementation for the Rust language. Based on the research paper Higher-Order
+/// Leak and Deadlock Free Locks by Jules Jacobs and Stephanie Balzer. 
+/// 
+/// Example
+/// ```rust
+/// use dfmutex::{DFMutex, spawn};
+/// 
+/// fn main() {
+///     // Create a Mutex with any owned value
+///     let m = DFMutex::new(String::from("Lorem Ipsum"));
+/// 
+///     // Create a closure to pass in the thread.
+///     // The type of the created Mutex above should be same as the
+///     // argument to the closure.
+///     let closure = |mut dfm: DFMutex<String>| {
+///         let data = dfm.lock().unwrap();
+///         
+///         // Use the data
+///         println!("{}", data);
+///     };
+/// 
+///     // Spawn 8 threads and store their handles
+///     let mut handles = Vec::new();
+///     for _ in 0..8 {
+///         handles.push(spawn(&m, closure));    
+///     }
+/// 
+///     // Join all the threads
+///     for handle in handles.into_iter() {
+///         handle.join().unwrap();
+///     }
+/// }
+/// ```
+
+/// A deadlock-free mutual exclusion primitive useful for protecting shared data
 #[derive(Debug)]
 pub struct DFMutex<T> {
     internal: Arc<Mutex<T>>,
 }
 
 impl<T> DFMutex<T> {
+    /// Creates a new mutex in an unlocked state ready for use.
     pub fn new(data: T) -> Self {
         DFMutex {
             internal: Arc::new(Mutex::new(data)),
         }
     }
 
+    /// Acquires a mutex, blocking the current thread until it is able to do so.
     pub fn lock(&mut self) -> LockResult<MutexGuard<'_, T>> {
         self.internal.lock()
     }
@@ -23,6 +64,7 @@ impl<T> DFMutex<T> {
     }
 }
 
+/// Spawns a new thread, returning a [`JoinHandle`] for it.
 pub fn spawn<D, T, F>(odfm: &DFMutex<D>, f: F) -> JoinHandle<T>
 where
     F: FnOnce(DFMutex<D>) -> T + Send + 'static,
@@ -35,7 +77,7 @@ where
 }
 
 #[allow(dead_code)]
-pub (crate) mod test_commons {
+mod test_commons {
     pub const TEST_ITERATIONS: std::ops::Range<i32> = 0..10;
     pub const THREADS_RANGE: std::ops::Range<i32> = 0..8;
 
