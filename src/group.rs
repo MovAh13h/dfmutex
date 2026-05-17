@@ -5,24 +5,35 @@ use crate::topology::{self, GroupId};
 
 /// A set of locks that may be acquired in any order without deadlock.
 ///
-/// Locks created from the same `LockGroup` are treated as peers in the sharing topology —
-/// no ordering constraint is imposed between them. This is the correct abstraction for
-/// problems like dining philosophers where independent resources must be shared freely.
+/// Normally, [`DFMutex`] locks must be acquired in a consistent global order — the cycle
+/// detector enforces this in debug builds. `LockGroup` relaxes that constraint for a
+/// specific set of locks: members of the same group are treated as peers, so no ordering
+/// is imposed between them.
 ///
-/// # Example
+/// This is the correct abstraction for the dining philosophers problem and any situation
+/// where a fixed pool of equal-status resources must be shared freely.
+///
+/// # Example — dining philosophers
 ///
 /// ```rust
-/// use dfmutex::LockGroup;
+/// use dfmutex::{DFMutex, LockGroup};
+/// use std::thread;
 ///
 /// let group = LockGroup::new();
-/// let fork_a = group.mutex(String::from("fork A"));
-/// let fork_b = group.mutex(String::from("fork B"));
+/// let forks: Vec<DFMutex<()>> = (0..5).map(|_| group.mutex(())).collect();
 ///
-/// // Clients for fork_a and fork_b can be acquired in any order across threads.
-/// let ca = fork_a.client();
-/// let cb = fork_b.client();
-/// let _ga = ca.lock().unwrap();
-/// let _gb = cb.lock().unwrap();
+/// let handles: Vec<_> = (0..5)
+///     .map(|i| {
+///         let left  = forks[i].client();
+///         let right = forks[(i + 1) % 5].client();
+///         thread::spawn(move || {
+///             let _l = left.lock().unwrap();
+///             let _r = right.lock().unwrap();
+///         })
+///     })
+///     .collect();
+///
+/// for h in handles { h.join().unwrap(); }
 /// ```
 pub struct LockGroup {
     #[cfg(debug_assertions)]
@@ -33,6 +44,19 @@ pub struct LockGroup {
 
 impl LockGroup {
     /// Creates a new lock group.
+    ///
+    /// All locks created from this group via [`LockGroup::mutex`] are peers and may be
+    /// acquired in any order. Locks from *different* groups are still subject to the
+    /// global ordering constraint.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let group = dfmutex::LockGroup::new();
+    /// let a = group.mutex(1u32);
+    /// let b = group.mutex(2u32);
+    /// // a and b can be locked in any order.
+    /// ```
     pub fn new() -> Self {
         LockGroup {
             #[cfg(debug_assertions)]
@@ -43,6 +67,26 @@ impl LockGroup {
     }
 
     /// Creates a new [`DFMutex`] belonging to this group.
+    ///
+    /// The returned lock is a peer of every other lock created from the same group:
+    /// it can be acquired in any order relative to them without triggering the
+    /// cycle detector.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use dfmutex::LockGroup;
+    ///
+    /// let group = LockGroup::new();
+    /// let lock_a = group.mutex(String::from("resource A"));
+    /// let lock_b = group.mutex(String::from("resource B"));
+    ///
+    /// // Clients for both locks can be acquired in any order.
+    /// let ca = lock_a.client();
+    /// let cb = lock_b.client();
+    /// let _ga = ca.lock().unwrap();
+    /// let _gb = cb.lock().unwrap();
+    /// ```
     pub fn mutex<T>(&self, value: T) -> DFMutex<T> {
         #[cfg(debug_assertions)]
         return DFMutex::new_in_group(value, self.id);
@@ -52,6 +96,7 @@ impl LockGroup {
 }
 
 impl Default for LockGroup {
+    /// Creates a new lock group, equivalent to [`LockGroup::new`].
     fn default() -> Self {
         LockGroup::new()
     }

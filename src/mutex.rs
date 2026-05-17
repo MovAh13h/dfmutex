@@ -14,19 +14,53 @@ struct LockInner<T> {
 
 /// The owning reference to a deadlock-free mutex. Exactly one owner exists per lock.
 ///
-/// Not [`Clone`] by design — ownership is unique. Use [`DFMutex::client`] or [`crate::spawn`]
-/// to create shareable [`DFMutexClient`] references.
+/// `DFMutex<T>` is deliberately not [`Clone`] — ownership is unique. To share access
+/// across threads, call [`DFMutex::client`] to obtain a [`DFMutexClient`], or use
+/// [`crate::spawn`] which creates a client automatically for the new thread.
+///
+/// # Example
+///
+/// ```rust
+/// use dfmutex::{DFMutex, spawn};
+///
+/// let counter = DFMutex::new(0u64);
+/// let handles: Vec<_> = (0..4)
+///     .map(|_| spawn(&counter, |c| *c.lock().unwrap() += 1))
+///     .collect();
+/// for h in handles { h.join().unwrap(); }
+/// assert_eq!(*counter.lock().unwrap(), 4);
+/// ```
 pub struct DFMutex<T>(LockInner<T>);
 
 /// A shareable client reference to a [`DFMutex`]. Any number of clients may exist per lock.
 ///
-/// [`Clone`]able — clients are freely shareable across threads.
+/// Clients are [`Clone`]able and [`Send`]able, making them the primary way to share a
+/// lock across threads. Every clone refers to the same underlying mutex.
+///
+/// # Example
+///
+/// ```rust
+/// use dfmutex::DFMutex;
+///
+/// let m = DFMutex::new(0u64);
+/// let c1 = m.client();
+/// let c2 = c1.clone(); // same underlying lock
+///
+/// *c1.lock().unwrap() += 10;
+/// assert_eq!(*c2.lock().unwrap(), 10);
+/// ```
 #[derive(Clone)]
 pub struct DFMutexClient<T>(LockInner<T>);
 
 /// RAII guard returned by [`DFMutex::lock`] and [`DFMutexClient::lock`].
 ///
-/// The lock is released when this guard is dropped.
+/// Derefs to `T`, giving direct access to the protected data. The lock is released
+/// when the guard is dropped.
+///
+/// Dropping the guard immediately (e.g. `let _ = m.lock()`) releases the lock at
+/// once, which is almost certainly unintentional. Bind the guard to a named variable
+/// to control how long the lock is held.
+#[must_use = "if the guard is immediately dropped the lock is released at once"]
 pub struct DFMutexGuard<'a, T> {
     inner: MutexGuard<'a, T>,
     #[cfg(debug_assertions)]
@@ -91,7 +125,14 @@ impl<T> Clone for LockInner<T> {
 // ── DFMutex ──────────────────────────────────────────────────────────────────
 
 impl<T> DFMutex<T> {
-    /// Creates a new lock in an unlocked state with the given value.
+    /// Creates a new lock in an unlocked state wrapping `value`.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let m = dfmutex::DFMutex::new(42u64);
+    /// assert_eq!(*m.lock().unwrap(), 42);
+    /// ```
     pub fn new(value: T) -> Self {
         DFMutex(LockInner::new(
             value,
@@ -110,24 +151,67 @@ impl<T> DFMutex<T> {
         DFMutex(LockInner::new(value))
     }
 
-    /// Creates a [`DFMutexClient`] sharing the same underlying lock.
+    /// Creates a [`DFMutexClient`] that shares the same underlying lock.
+    ///
+    /// The client is [`Clone`]able and [`Send`]able, so it can be moved into threads
+    /// directly. Multiple clients for the same lock may coexist freely.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use dfmutex::DFMutex;
+    ///
+    /// let m = DFMutex::new(0u64);
+    /// let client = m.client();
+    /// *client.lock().unwrap() += 1;
+    /// assert_eq!(*m.lock().unwrap(), 1);
+    /// ```
+    #[must_use = "creating a client without using it has no effect"]
     pub fn client(&self) -> DFMutexClient<T> {
         DFMutexClient(self.0.client())
     }
 
-    /// Acquires the lock, blocking until available. Returns a guard that releases on drop.
+    /// Acquires the lock, blocking the current thread until it becomes available.
+    ///
+    /// Returns a [`DFMutexGuard`] that releases the lock when dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the mutex is [poisoned] — i.e., another thread panicked while
+    /// holding it. The `Err` still contains a guard that provides access to the data.
+    ///
+    /// # Panics
+    ///
+    /// In `debug_assertions` builds, panics if:
+    /// - acquiring this lock would form a cycle in the global lock-order graph
+    ///   (potential deadlock with another thread), or
+    /// - this exact mutex is already held by the current thread (reentrant locking,
+    ///   which would deadlock on `std::sync::Mutex`).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let m = dfmutex::DFMutex::new(0u64);
+    /// *m.lock().unwrap() = 99;
+    /// assert_eq!(*m.lock().unwrap(), 99);
+    /// ```
+    ///
+    /// [poisoned]: std::sync::Mutex#poisoning
+    #[must_use = "if the guard is immediately dropped the lock is released at once"]
     pub fn lock(&self) -> LockResult<DFMutexGuard<'_, T>> {
         self.0.lock()
     }
 }
 
 impl<T: Default> Default for DFMutex<T> {
+    /// Creates a lock wrapping `T::default()`.
     fn default() -> Self {
         DFMutex::new(T::default())
     }
 }
 
 impl<T> From<T> for DFMutex<T> {
+    /// Creates a lock wrapping `value`, equivalent to [`DFMutex::new`].
     fn from(value: T) -> Self {
         DFMutex::new(value)
     }
@@ -149,13 +233,43 @@ impl<T: fmt::Debug> fmt::Debug for DFMutex<T> {
 // ── DFMutexClient ─────────────────────────────────────────────────────────────
 
 impl<T> DFMutexClient<T> {
-    /// Acquires the lock, blocking until available. Returns a guard that releases on drop.
+    /// Acquires the lock, blocking the current thread until it becomes available.
+    ///
+    /// Returns a [`DFMutexGuard`] that releases the lock when dropped.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` if the mutex is [poisoned]. The `Err` still contains a guard
+    /// that provides access to the data.
+    ///
+    /// # Panics
+    ///
+    /// In `debug_assertions` builds, panics if:
+    /// - acquiring this lock would form a cycle in the global lock-order graph, or
+    /// - this exact mutex is already held by the current thread (reentrant locking).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use dfmutex::DFMutex;
+    ///
+    /// let m = DFMutex::new(0u64);
+    /// let c = m.client();
+    /// *c.lock().unwrap() += 1;
+    /// assert_eq!(*m.lock().unwrap(), 1);
+    /// ```
+    ///
+    /// [poisoned]: std::sync::Mutex#poisoning
+    #[must_use = "if the guard is immediately dropped the lock is released at once"]
     pub fn lock(&self) -> LockResult<DFMutexGuard<'_, T>> {
         self.0.lock()
     }
 }
 
 impl<T: Default> Default for DFMutexClient<T> {
+    /// Creates a client whose underlying owner has already been dropped.
+    ///
+    /// The data is still accessible via the client for as long as the client lives.
     fn default() -> Self {
         DFMutex::default().client()
     }

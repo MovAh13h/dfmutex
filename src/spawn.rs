@@ -4,8 +4,16 @@ use crate::mutex::{DFMutex, DFMutexClient};
 
 /// Spawns a new thread, passing a [`DFMutexClient`] of `dfm` to the closure.
 ///
-/// This is the primary way to share a lock across threads while maintaining the
-/// deadlock-freedom invariant. Each spawned thread receives its own client reference.
+/// This is the primary way to share a lock across threads while preserving the
+/// deadlock-freedom invariant. The owner `dfm` stays in the calling thread; the
+/// spawned thread receives its own client reference.
+///
+/// Returns the [`JoinHandle`] for the spawned thread.
+///
+/// # Panics
+///
+/// Panics if the OS fails to create the thread (same behaviour as
+/// [`std::thread::spawn`]).
 ///
 /// # Example
 ///

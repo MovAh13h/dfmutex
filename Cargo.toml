@@ -2,11 +2,14 @@
 name = "dfmutex"
 version = "0.2.0"
 edition = "2021"
+rust-version = "1.70"
 license-file = "LICENSE"
-description = "Deadlock-free Mutex locks"
+description = "Deadlock-free mutexes with a runtime cycle detector for debug builds"
 repository = "https://github.com/MovAh13h/dfmutex"
 documentation = "https://docs.rs/dfmutex"
 readme = "README.md"
+keywords = ["mutex", "deadlock", "concurrency", "lock", "thread"]
+categories = ["concurrency"]
 
 [dev-dependencies]
 rand = "0.8.5"
