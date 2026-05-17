@@ -1,14 +1,30 @@
 [package]
 name = "dfmutex"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
+rust-version = "1.84"
 license-file = "LICENSE"
-description = "Deadlock-free Mutex locks"
+description = "Deadlock-free mutexes with a runtime cycle detector for debug builds"
 repository = "https://github.com/MovAh13h/dfmutex"
 documentation = "https://docs.rs/dfmutex"
 readme = "README.md"
+keywords = ["mutex", "deadlock", "concurrency", "lock", "thread"]
+categories = ["concurrency"]
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[dev-dependencies]
 rand = "0.8.5"
+proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+parking_lot = "0.12"
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "topology_cost"
+harness = false
+
+[profile.bench-assertions]
+inherits = "bench"
+debug-assertions = true
