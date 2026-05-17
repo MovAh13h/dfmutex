@@ -243,7 +243,7 @@ mod tests {
         let handles: Vec<_> = (0..THREADS)
             .map(|_| {
                 spawn(&m, |outer| {
-                    let mut g = outer.lock().unwrap();
+                    let g = outer.lock().unwrap();
                     *g.0.lock().unwrap() += 1;
                     *g.1.lock().unwrap() += 1;
                 })

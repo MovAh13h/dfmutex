@@ -11,3 +11,17 @@ readme = "README.md"
 [dev-dependencies]
 rand = "0.8.5"
 proptest = "1"
+criterion = { version = "0.5", features = ["html_reports"] }
+parking_lot = "0.12"
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[[bench]]
+name = "topology_cost"
+harness = false
+
+[profile.bench-assertions]
+inherits = "bench"
+debug-assertions = true
