@@ -2,7 +2,7 @@
 name = "dfmutex"
 version = "0.2.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.84"
 license-file = "LICENSE"
 description = "Deadlock-free mutexes with a runtime cycle detector for debug builds"
 repository = "https://github.com/MovAh13h/dfmutex"

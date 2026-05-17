@@ -1,7 +1,7 @@
 use crate::mutex::DFMutex;
 
 #[cfg(debug_assertions)]
-use crate::topology::{self, GroupId};
+use crate::topology;
 
 /// A set of locks that may be acquired in any order without deadlock.
 ///
@@ -36,10 +36,7 @@ use crate::topology::{self, GroupId};
 /// for h in handles { h.join().unwrap(); }
 /// ```
 pub struct LockGroup {
-    #[cfg(debug_assertions)]
-    id: GroupId,
-    #[cfg(not(debug_assertions))]
-    _private: (),
+    id: usize,
 }
 
 impl LockGroup {
@@ -62,7 +59,7 @@ impl LockGroup {
             #[cfg(debug_assertions)]
             id: topology::next_id(),
             #[cfg(not(debug_assertions))]
-            _private: (),
+            id: 0,
         }
     }
 
@@ -88,10 +85,7 @@ impl LockGroup {
     /// let _gb = cb.lock().unwrap();
     /// ```
     pub fn mutex<T>(&self, value: T) -> DFMutex<T> {
-        #[cfg(debug_assertions)]
-        return DFMutex::new_in_group(value, self.id);
-        #[cfg(not(debug_assertions))]
-        return DFMutex::new_in_group(value, 0);
+        DFMutex::new_in_group(value, self.id)
     }
 }
 

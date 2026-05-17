@@ -7,7 +7,7 @@ pub type GroupId = usize;
 
 static NEXT_ID: AtomicUsize = AtomicUsize::new(0);
 
-pub fn next_id() -> GroupId {
+pub(crate) fn next_id() -> GroupId {
     NEXT_ID.fetch_add(1, Ordering::Relaxed)
 }
 
@@ -57,7 +57,7 @@ thread_local! {
 
 /// Called before blocking on a lock. Checks for reentrant locking and cycles,
 /// then records the acquisition. `mutex_ptr` is `Arc::as_ptr(&inner.mutex) as usize`.
-pub fn check_and_register_acquire(group_id: GroupId, mutex_ptr: usize) {
+pub(crate) fn check_and_register_acquire(group_id: GroupId, mutex_ptr: usize) {
     // Reentrant check first: same Arc on the same thread means same underlying
     // std::sync::Mutex, which is not reentrant and would deadlock silently.
     HELD_PTRS.with(|ptrs| {
@@ -104,7 +104,7 @@ pub fn check_and_register_acquire(group_id: GroupId, mutex_ptr: usize) {
 }
 
 /// Called when a lock guard is dropped.
-pub fn register_release(group_id: GroupId, mutex_ptr: usize) {
+pub(crate) fn register_release(group_id: GroupId, mutex_ptr: usize) {
     HELD.with(|held| {
         let mut held = held.borrow_mut();
         // Remove the most recent occurrence (handles same-group peer locks).

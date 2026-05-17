@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dfmutex::DFMutex;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 // ── Group 3: Nested lock depth ────────────────────────────────────────────────
 //
@@ -104,7 +104,6 @@ fn concurrent_nested(c: &mut Criterion) {
             BenchmarkId::new("std_mutex_nested", n),
             &n,
             |b, &n| {
-                use std::sync::Arc;
                 let locks: Vec<Arc<Mutex<u64>>> =
                     (0..n + 1).map(|_| Arc::new(Mutex::new(0u64))).collect();
 

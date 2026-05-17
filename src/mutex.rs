@@ -225,8 +225,8 @@ impl<T: fmt::Debug> fmt::Debug for DFMutex<T> {
         match self.0.mutex.try_lock() {
             Ok(guard) => s.field("data", &*guard),
             Err(_) => s.field("data", &"<locked>"),
-        };
-        s.finish()
+        }
+        .finish()
     }
 }
 
@@ -283,8 +283,8 @@ impl<T: fmt::Debug> fmt::Debug for DFMutexClient<T> {
         match self.0.mutex.try_lock() {
             Ok(guard) => s.field("data", &*guard),
             Err(_) => s.field("data", &"<locked>"),
-        };
-        s.finish()
+        }
+        .finish()
     }
 }
 
