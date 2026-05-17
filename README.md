@@ -121,12 +121,92 @@ as lean as a hand-rolled `Arc<Mutex<T>>`.
 
 ## Benchmarks
 
+Two benchmark suites are included, each runnable in release mode (cycle detector off) or
+under the `bench-assertions` profile (cycle detector on) to isolate overhead.
+
+### Commands
+
 ```sh
-cargo bench                              # release mode, all groups
-cargo bench --bench throughput           # uncontended, contended, dining philosophers
-cargo bench --bench topology_cost        # nested-depth and concurrent-nested overhead
-cargo bench --profile bench-assertions   # same benchmarks with cycle detector active
+# Run all benchmarks in release mode
+cargo bench
+
+# Uncontended single-lock, contended N-thread scaling, dining philosophers (LockGroup)
+# Compares DFMutex vs std::Mutex vs parking_lot across 1–16 threads
+cargo bench --bench throughput
+
+# Single-thread nested lock depth (depth 1/2/3) and concurrent nested locking
+# Release mode: measures thread-local HELD tracking overhead only
+cargo bench --bench topology_cost
+
+# Re-run either suite with the cycle detector fully active
+# Use this to see the true cost of debug builds
+cargo bench --bench throughput   --profile bench-assertions
+cargo bench --bench topology_cost --profile bench-assertions
 ```
+
+### Results (Apple M-series, release mode)
+
+#### Uncontended — single thread, repeated lock/unlock
+
+| | Time | vs `std::Mutex` |
+|---|---|---|
+| `std::Mutex` | 8.68 ns | baseline |
+| `DFMutex` | **8.65 ns** | ≈ 0% |
+| `parking_lot` | 8.50 ns | −2% |
+
+DFMutex in release mode is statistically identical to `std::Mutex`. The topology fields
+are stripped by `#[cfg(debug_assertions)]`; the only remaining structure is `Arc<Mutex<T>>`.
+
+#### Contended — N threads competing for one lock
+
+| Threads | `std::Mutex` | `DFMutex` | `parking_lot` |
+|---------|------------|---------|-------------|
+| 1 | 19.9 µs | 19.9 µs | 19.8 µs |
+| 2 | 42.7 µs | 41.6 µs | 41.0 µs |
+| 4 | 67.5 µs | 68.0 µs | 66.5 µs |
+| 8 | 116.6 µs | 117.2 µs | 116.1 µs |
+| 16 | 227.8 µs | 226.9 µs | 231.2 µs |
+
+All three are within measurement noise at every thread count. The bottleneck is OS
+thread scheduling, not the mutex implementation.
+
+#### Nested lock depth — release vs debug
+
+| Scenario | Release | Debug | Added cost |
+|---|---|---|---|
+| `std::Mutex` depth=1 | 8.7 ns | 8.7 ns | — |
+| `std::Mutex` depth=2 | 13.4 ns | 13.5 ns | — |
+| `DFMutex` depth=1 | 8.7 ns | **30.2 ns** | +21.5 ns |
+| `DFMutex` depth=2 | 13.4 ns | **174 ns** | +161 ns |
+| `DFMutex` depth=3 | 18.3 ns | **392 ns** | +374 ns |
+
+In debug builds:
+- **Flat lock (+21.5 ns)** — reentrant check (`HELD_PTRS.contains()`) and thread-local
+  HELD push/pop. No global lock involved.
+- **First nesting level (+161 ns)** — the global `GRAPH` mutex is acquired here for the
+  cycle check and edge insertion.
+- **Each additional nesting level (+~215 ns)** — another round-trip through the global
+  `GRAPH` mutex.
+
+#### Concurrent nested locking — debug overhead
+
+| Threads | `std::Mutex` | `DFMutex` release | `DFMutex` debug | Overhead |
+|---------|------------|-----------------|---------------|---------|
+| 2 | 39.6 µs | 39.8 µs | 43.5 µs | +9.7% |
+| 4 | 67.2 µs | 67.2 µs | 73.7 µs | +9.7% |
+| 8 | 118.1 µs | 117.7 µs | 126.8 µs | +7.8% |
+
+The global `GRAPH` mutex adds roughly **8–10% overhead** to concurrent nested locking in
+debug builds, as multiple threads contend on the cycle-check lock simultaneously.
+
+#### Summary
+
+| Mode | Scenario | Cost |
+|---|---|---|
+| Release | Any | Identical to `std::Mutex` — zero overhead |
+| Debug | Flat lock (depth=1) | +21 ns (thread-local only) |
+| Debug | Nested (depth≥2) | +~150–220 ns per level (global GRAPH mutex) |
+| Debug | Concurrent nested | ~8–10% slower than `std::Mutex` |
 
 ## Acknowledgements
 
