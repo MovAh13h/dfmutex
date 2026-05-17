@@ -1,6 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
 use dfmutex::DFMutex;
-use std::sync::Mutex as StdMutex;
+use std::sync::Mutex;
 
 // ── Group 3: Nested lock depth ────────────────────────────────────────────────
 //
@@ -16,12 +16,12 @@ fn nested_depth(c: &mut Criterion) {
     let mut group = c.benchmark_group("nested_depth");
 
     group.bench_function("std_mutex/depth=1", |b| {
-        let m = StdMutex::new(0u64);
+        let m = Mutex::new(0u64);
         b.iter(|| *m.lock().unwrap() += 1);
     });
 
     group.bench_function("std_mutex/depth=2", |b| {
-        let outer = StdMutex::new(StdMutex::new(0u64));
+        let outer = Mutex::new(Mutex::new(0u64));
         b.iter(|| {
             let g = outer.lock().unwrap();
             *g.lock().unwrap() += 1;
@@ -105,8 +105,8 @@ fn concurrent_nested(c: &mut Criterion) {
             &n,
             |b, &n| {
                 use std::sync::Arc;
-                let locks: Vec<Arc<StdMutex<u64>>> =
-                    (0..n + 1).map(|_| Arc::new(StdMutex::new(0u64))).collect();
+                let locks: Vec<Arc<Mutex<u64>>> =
+                    (0..n + 1).map(|_| Arc::new(Mutex::new(0u64))).collect();
 
                 b.iter(|| {
                     let handles: Vec<_> = (0..n)

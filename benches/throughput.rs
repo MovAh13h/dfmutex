@@ -1,7 +1,6 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use dfmutex::{spawn as dfspawn, DFMutex, LockGroup};
-use parking_lot::Mutex as PLMutex;
-use std::sync::{Arc, Mutex as StdMutex};
+use std::sync::{Arc, Mutex};
 
 const THREAD_COUNTS: &[usize] = &[1, 2, 4, 8, 16];
 const PHILOSOPHER_COUNTS: &[usize] = &[3, 5, 8];
@@ -16,7 +15,7 @@ fn uncontended(c: &mut Criterion) {
     let mut group = c.benchmark_group("uncontended");
 
     group.bench_function("std_mutex", |b| {
-        let m = StdMutex::new(0u64);
+        let m = Mutex::new(0u64);
         b.iter(|| *m.lock().unwrap() += 1);
     });
 
@@ -26,7 +25,7 @@ fn uncontended(c: &mut Criterion) {
     });
 
     group.bench_function("parking_lot", |b| {
-        let m = PLMutex::new(0u64);
+        let m = parking_lot::Mutex::new(0u64);
         b.iter(|| *m.lock() += 1);
     });
 
@@ -46,7 +45,7 @@ fn contended(c: &mut Criterion) {
         group.throughput(Throughput::Elements(n as u64));
 
         group.bench_with_input(BenchmarkId::new("std_mutex", n), &n, |b, &n| {
-            let m = Arc::new(StdMutex::new(0u64));
+            let m = Arc::new(Mutex::new(0u64));
             b.iter(|| {
                 let handles: Vec<_> = (0..n)
                     .map(|_| {
@@ -72,7 +71,7 @@ fn contended(c: &mut Criterion) {
         });
 
         group.bench_with_input(BenchmarkId::new("parking_lot", n), &n, |b, &n| {
-            let m = Arc::new(PLMutex::new(0u64));
+            let m = Arc::new(parking_lot::Mutex::new(0u64));
             b.iter(|| {
                 let handles: Vec<_> = (0..n)
                     .map(|_| {
